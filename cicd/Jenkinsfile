@@ -68,8 +68,8 @@ node {
             sh "python3 -m venv ${VENV_DIR}"
             
             // // Install dependencies from requirements.txt
-            sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip"
-            // sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
+            // sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip"
+            sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
         }
 
         // --- STAGE: Run Performance Reporter ---
@@ -77,7 +77,7 @@ node {
             echo "Constructing report command..."
             
             // --- Build the command dynamically using Groovy ---
-            def command = "python3 -m src.main report"
+            def command = "python3 -m src.app.main"
             command += " --${params.SOURCE_TYPE} \"${params.SOURCE_IDENTIFIER}\""
             
             if (params.LATEST_SPRINT) {
