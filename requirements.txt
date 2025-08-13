@@ -1,1 +1,18 @@
-yaml
+# -----------------------------------------------------------------------------
+# Python Application Dependencies
+# -----------------------------------------------------------------------------
+
+# For loading environment variables from a .env file
+python-dotenv
+
+# A unified, modern library for interacting with Atlassian product APIs
+atlassian-python-api
+
+# For creating and manipulating .xlsx Excel files
+openpyxl
+
+# For parsing the YAML report template file
+PyYAML
+
+# For adding color to console log output, improving readability
+colorlog
