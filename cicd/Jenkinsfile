@@ -60,6 +60,8 @@ node {
         // --- STAGE: Setup Environment ---
         stage('Setup Environment') {
             echo "Setting up Python virtual environment..."
+
+            checkout scm
             
             // // Check if Python is available
             sh 'python3 --version'
