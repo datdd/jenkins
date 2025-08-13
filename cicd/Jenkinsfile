@@ -84,7 +84,7 @@ node {
             echo "Constructing report command..."
             
             // --- Build the command dynamically using Groovy ---
-            def command = "python3 -m src.app.main"
+            def command = "python -m src.app.main"
             command += " --${params.SOURCE_TYPE} \"${params.SOURCE_IDENTIFIER}\""
             
             if (params.LATEST_SPRINT) {
@@ -103,6 +103,13 @@ node {
             
             // Activate the venv and run the command
             sh ". ${VENV_DIR}/bin/activate && ${command}"
+            if (isUnix()) {
+                def venvActivate = ". ${venvDir}/bin/activate"
+                sh "${venvActivate} && ${command}"
+            } else {
+                def venvActivate = "${venvDir}\\Scripts\\activate"
+                bat "${venvActivate} && ${command}"
+            }
         }
 
         // --- STAGE: Archive Report ---
