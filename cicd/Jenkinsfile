@@ -94,7 +94,7 @@ node {
             
             echo "Executing: ${command}"
             
-            Activate the venv and run the command
+            // Activate the venv and run the command
             sh ". ${VENV_DIR}/bin/activate && ${command}"
         }
 
