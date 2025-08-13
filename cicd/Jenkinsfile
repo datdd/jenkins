@@ -7,6 +7,8 @@
 // =========================================================================
 properties([
     parameters([
+        string(name: 'JIRA_AUTH_USERNAME', defaultValue: '...', description: 'Jira username'),
+        password(name: 'JIRA_AUTH_PASSWORD', defaultValue: '', description: 'Jira password'),
         choice(
             name: 'SOURCE_TYPE',
             choices: ['group', 'project', 'users'],
@@ -50,8 +52,6 @@ node {
     // Define variables for the script
     def VENV_DIR = "venv"
 
-    tool name: 'Python-3.11', type: 'python'
-    
     // =========================================================================
     // SECTION 2: MAIN EXECUTION (try/finally for cleanup)
     // The try/finally block ensures that the cleanup stage always runs.
@@ -61,69 +61,41 @@ node {
         stage('Setup Environment') {
             echo "Setting up Python virtual environment..."
             
-            // Checkout the source code from SCM (e.g., Git)
-            checkout scm
-            
-            // Check if Python is available
+            // // Check if Python is available
             sh 'python3 --version'
             
-            // Create a virtual environment to isolate dependencies
+            // // Create a virtual environment to isolate dependencies
             sh "python3 -m venv ${VENV_DIR}"
             
-            // Install dependencies from requirements.txt
-            sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
+            // // Install dependencies from requirements.txt
+            sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip"
+            // sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
         }
 
         // --- STAGE: Run Performance Reporter ---
         stage('Run Performance Reporter') {
-            // Use withCredentials to securely load secrets into environment variables
-            // The secrets will be masked in the console log.
-            withCredentials([
-                string(credentialsId: 'JIRA_API_TOKEN', variable: 'JIRA_API_TOKEN_SECRET'),
-                string(credentialsId: 'BITBUCKET_TOKEN', variable: 'BITBUCKET_TOKEN_SECRET')
-            ]) {
-                // Use withEnv to set all other non-secret environment variables
-                withEnv([
-                    "JIRA_SERVER=https://your-domain.atlassian.net",
-                    "JIRA_USER_EMAIL=your-service-account@example.com",
-                    "BITBUCKET_URL=https://bitbucket.your-company.com",
-                    "BITBUCKET_USER=your-bitbucket-service-account",
-                    // Pass the secrets from withCredentials into the environment
-                    "JIRA_API_TOKEN=${JIRA_API_TOKEN_SECRET}",
-                    "BITBUCKET_TOKEN=${BITBUCKET_TOKEN_SECRET}",
-                    // ... and all other .env variables
-                    "JIRA_IS_CLOUD=true",
-                    "JIRA_STORY_POINTS_FIELD_ID=customfield_10016",
-                    "BITBUCKET_PROJECT_KEYS=PROJ1,PROJ2",
-                    "SUPPORT_ISSUE_IDENTIFIERS=SUPPORT,HELPDESK",
-                    "MEETINGS_ISSUE_IDENTIFIERS=MEETING",
-                    "SPRINT_MOVEMENT_THRESHOLD=3",
-                    "TOP_N_TASKS_LIMIT=3"
-                ]) {
-                    echo "Constructing report command..."
-                    
-                    // --- Build the command dynamically using Groovy ---
-                    def command = "python3 -m src.main report"
-                    command += " --${params.SOURCE_TYPE} \"${params.SOURCE_IDENTIFIER}\""
-                    
-                    if (params.LATEST_SPRINT) {
-                        command += " --latest-sprint"
-                    }
-                    if (params.START_DATE) {
-                        command += " --start-date ${params.START_DATE}"
-                    }
-                    if (params.END_DATE) {
-                        command += " --end-date ${params.END_DATE}"
-                    }
-                    command += " --format ${params.REPORT_FORMAT}"
-                    command += " --max-workers ${params.MAX_WORKERS}"
-                    
-                    echo "Executing: ${command}"
-                    
-                    // Activate the venv and run the command
-                    sh ". ${VENV_DIR}/bin/activate && ${command}"
-                }
+            echo "Constructing report command..."
+            
+            // --- Build the command dynamically using Groovy ---
+            def command = "python3 -m src.main report"
+            command += " --${params.SOURCE_TYPE} \"${params.SOURCE_IDENTIFIER}\""
+            
+            if (params.LATEST_SPRINT) {
+                command += " --latest-sprint"
             }
+            if (params.START_DATE) {
+                command += " --start-date ${params.START_DATE}"
+            }
+            if (params.END_DATE) {
+                command += " --end-date ${params.END_DATE}"
+            }
+            command += " --format ${params.REPORT_FORMAT}"
+            command += " --max-workers ${params.MAX_WORKERS}"
+            
+            echo "Executing: ${command}"
+            
+            Activate the venv and run the command
+            sh ". ${VENV_DIR}/bin/activate && ${command}"
         }
 
         // --- STAGE: Archive Report ---
@@ -132,11 +104,6 @@ node {
             if (params.REPORT_FORMAT == 'excel' || params.REPORT_FORMAT == 'csv') {
                 def reportFileName = (params.REPORT_FORMAT == 'excel') ? 'performance_report.xlsx' : 'performance_report.csv'
                 echo "Archiving generated report: ${reportFileName}"
-                
-                archiveArtifacts(
-                    artifacts: reportFileName,
-                    allowEmptyArchive: true
-                )
             } else {
                 echo "Skipping archiving as report format is 'console'."
             }
