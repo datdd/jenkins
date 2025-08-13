@@ -51,7 +51,7 @@ properties([
 node {
     // Define variables for the script
     def venvDir = "venv"
-    def pythonExecutable = "python"
+    
 
     // =========================================================================
     // SECTION 2: MAIN EXECUTION (try/finally for cleanup)
@@ -64,14 +64,18 @@ node {
             checkout scm
             if (isUnix()) {
                 echo "Running on Unix..."
+                def pythonExecutable = "python3"
                 def venvActivate = ". ${venvDir}/bin/activate"
+                
                 sh "${pythonExecutable} --version"
                 sh "rm -rf ${venvDir}"
                 sh "${pythonExecutable} -m venv ${venvDir}"
                 sh "${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt"
             } else {
                 echo "Running on Windows..."
+                def pythonExecutable = "py -3"
                 def venvActivate = "${venvDir}\\Scripts\\activate"
+                
                 bat "${pythonExecutable} --version"
                 bat "if exist ${venvDir} ( rmdir /s /q ${venvDir} )"
                 bat "${pythonExecutable} -m venv ${venvDir}"
@@ -102,7 +106,6 @@ node {
             echo "Executing: ${command}"
             
             // Activate the venv and run the command
-            sh ". ${VENV_DIR}/bin/activate && ${command}"
             if (isUnix()) {
                 def venvActivate = ". ${venvDir}/bin/activate"
                 sh "${venvActivate} && ${command}"
