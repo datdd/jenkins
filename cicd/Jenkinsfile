@@ -49,6 +49,8 @@ properties([
 node {
     // Define variables for the script
     def VENV_DIR = "venv"
+
+    tool name: 'Python-3.11', type: 'python'
     
     // =========================================================================
     // SECTION 2: MAIN EXECUTION (try/finally for cleanup)
