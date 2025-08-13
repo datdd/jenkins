@@ -50,7 +50,8 @@ properties([
 // The main node block where the build will execute
 node {
     // Define variables for the script
-    def VENV_DIR = "venv"
+    def venvDir = "venv"
+    def pythonExecutable = "python"
 
     // =========================================================================
     // SECTION 2: MAIN EXECUTION (try/finally for cleanup)
@@ -60,18 +61,22 @@ node {
         // --- STAGE: Setup Environment ---
         stage('Setup Environment') {
             echo "Setting up Python virtual environment..."
-
             checkout scm
-            
-            // // Check if Python is available
-            sh 'python3 --version'
-            
-            // // Create a virtual environment to isolate dependencies
-            sh "python3 -m venv ${VENV_DIR}"
-            
-            // // Install dependencies from requirements.txt
-            // sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip"
-            sh ". ${VENV_DIR}/bin/activate && pip install --upgrade pip && pip install -r requirements.txt"
+            if (isUnix()) {
+                echo "Running on Unix..."
+                def venvActivate = ". ${venvDir}/bin/activate"
+                sh "${pythonExecutable} --version"
+                sh "rm -rf ${venvDir}"
+                sh "${pythonExecutable} -m venv ${venvDir}"
+                sh "${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt"
+            } else {
+                echo "Running on Windows..."
+                def venvActivate = "${venvDir}\\Scripts\\activate"
+                bat "${pythonExecutable} --version"
+                bat "if exist ${venvDir} ( rmdir /s /q ${venvDir} )"
+                bat "${pythonExecutable} -m venv ${venvDir}"
+                bat "${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt"
+            }
         }
 
         // --- STAGE: Run Performance Reporter ---
