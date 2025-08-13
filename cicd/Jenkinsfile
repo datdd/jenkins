@@ -121,7 +121,7 @@ node {
         stage('Cleanup') {
             echo "Cleaning up workspace..."
             // Remove the virtual environment
-            sh "rm -rf ${VENV_DIR}"
+            // sh "rm -rf ${VENV_DIR}"
         }
     }
 }
