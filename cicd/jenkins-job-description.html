@@ -1,0 +1,48 @@
+<h3>Jira & Bitbucket Performance Reporter</h3>
+
+<p>
+  This job generates on-demand performance and analytics reports by collecting data from our Jira and Bitbucket instances.
+</p>
+
+<hr>
+
+<h4><strong>Common Use Cases:</strong></h4>
+<ul>
+  <li>Analyze a team's performance over a specific date range.</li>
+  <li>Generate a report for each team member covering their individual latest completed sprint.</li>
+  <li>Get a list of all contributors to a specific project.</li>
+</ul>
+
+<hr>
+
+<h4><strong>How to Use:</strong></h4>
+<ol>
+  <li>Click <strong>"Build with Parameters"</strong>.</li>
+  <li>
+    <strong>Choose a User Source:</strong><br>
+    <ul>
+      <li>To run for a team, set <code>SOURCE_TYPE</code> to <code>group</code> and <code>SOURCE_IDENTIFIER</code> to your Jira group name (e.g., <code>engineering-team</code>).</li>
+      <li>To run for a specific project, set <code>SOURCE_TYPE</code> to <code>project</code> and <code>SOURCE_IDENTIFIER</code> to the project key (e.g., <code>PROJ</code>).</li>
+      <li>To run for specific people, set <code>SOURCE_TYPE</code> to <code>users</code> and <code>SOURCE_IDENTIFIER</code> to a comma-separated list of usernames (e.g., <code>jdoe,asmith</code>).</li>
+    </ul>
+  </li>
+  <li>
+    <strong>Choose a Time Frame:</strong><br>
+    <ul>
+      <li>For a custom date range, fill in the <strong>Start Date</strong> and <strong>End Date</strong> (format: YYYY-MM-DD).</li>
+      <li><strong>(Recommended)</strong> To analyze the most recent sprint for each person, check the <strong>LATEST_SPRINT</strong> box. This will automatically find the correct sprint and its dates for each user.</li>
+    </ul>
+  </li>
+  <li>
+    <strong>Choose Output:</strong><br>
+    <ul>
+      <li>Set <strong>REPORT_FORMAT</strong> to <code>excel</code> for the full, detailed report with charts and hyperlinks.</li>
+    </ul>
+  </li>
+  <li>Click <strong>"Build"</strong>.</li>
+</ol>
+
+<h4><strong>Accessing the Report:</strong></h4>
+<p>
+  After the build completes successfully, a link to the report file (e.g., <code>performance_report.xlsx</code>) will appear in the <strong>Build Artifacts</strong> on the build's main page.
+</p>

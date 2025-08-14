@@ -1,17 +1,13 @@
-// Jenkinsfile (Scripted Pipeline)
-
 // =========================================================================
-// SECTION 1: PROPERTIES (Includes Parameters)
-// This block must be at the top level of the script. It defines the
-// parameters for the "Build with Parameters" screen.
+// SECTION 1: PIPELINE PROPERTIES
 // =========================================================================
 properties([
     parameters([
-        string(name: 'JIRA_AUTH_USERNAME', defaultValue: '...', description: 'Jira username'),
-        password(name: 'JIRA_AUTH_PASSWORD', defaultValue: '', description: 'Jira password'),
+        string(name: 'USERNAME', defaultValue: '...', description: 'Jira username'),
+        password(name: 'PASSWORD', defaultValue: '', description: 'Jira password'),
         choice(
             name: 'SOURCE_TYPE',
-            choices: ['group', 'project', 'users'],
+            choices: ['group', 'project', 'users', 'sprint', 'jql'],
             description: 'The source for finding users to report on.'
         ),
         string(
@@ -34,111 +30,216 @@ properties([
             defaultValue: '',
             description: 'End date (YYYY-MM-DD). Leave empty if using --latest-sprint without date override.'
         ),
-        choice(
-            name: 'REPORT_FORMAT',
-            choices: ['excel', 'csv', 'console'],
-            description: 'The output format for the report.'
-        ),
         string(
-            name: 'MAX_WORKERS',
-            defaultValue: '10',
-            description: 'Maximum number of parallel worker threads for API calls.'
+            name: 'REPORT_OUTPUT',
+            defaultValue: 'performance_report.xlsx',
+            description: 'The name of the output report file.'
         )
+        
     ])
 ])
 
-// The main node block where the build will execute
+// =========================================================================
+// SECTION 2: PIPELINE EXECUTION
+// =========================================================================
 node {
-    // Define variables for the script
-    def venvDir = "venv"
+    def CONFIG = [
+        VENV_DIR: 'venv',
+        PYTHON_EXECUTABLE: isUnix() ? 'python3' : 'py -3',
+        REPORT_FILE_NAMES: [
+            'final_report': params.REPORT_OUTPUT || 'performance_report.xlsx',
+            'running_log': 'app.log'
+        ]
+    ]
     
-
-    // =========================================================================
-    // SECTION 2: MAIN EXECUTION (try/finally for cleanup)
-    // The try/finally block ensures that the cleanup stage always runs.
-    // =========================================================================
     try {
-        // --- STAGE: Setup Environment ---
+        stage('Set Build Name') {
+            configureBuildInfo()
+        }
+
         stage('Setup Environment') {
-            echo "Setting up Python virtual environment..."
-            checkout scm
-            if (isUnix()) {
-                echo "Running on Unix..."
-                def pythonExecutable = "python3"
-                def venvActivate = ". ${venvDir}/bin/activate"
-                
-                sh "${pythonExecutable} --version"
-                sh "rm -rf ${venvDir}"
-                sh "${pythonExecutable} -m venv ${venvDir}"
-                sh "${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt"
-            } else {
-                echo "Running on Windows..."
-                def pythonExecutable = "py -3"
-                def venvActivate = "${venvDir}\\Scripts\\activate"
-                
-                bat "${pythonExecutable} --version"
-                bat "if exist ${venvDir} ( rmdir /s /q ${venvDir} )"
-                bat "${pythonExecutable} -m venv ${venvDir}"
-                bat "${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt"
-            }
+            setupPythonEnvironment(CONFIG.VENV_DIR, CONFIG.PYTHON_EXECUTABLE)
         }
 
-        // --- STAGE: Run Performance Reporter ---
         stage('Run Performance Reporter') {
-            echo "Constructing report command..."
-            
-            // --- Build the command dynamically using Groovy ---
-            def command = "python -m src.app.main"
-            command += " --${params.SOURCE_TYPE} \"${params.SOURCE_IDENTIFIER}\""
-            
-            if (params.LATEST_SPRINT) {
-                command += " --latest-sprint"
-            }
-            if (params.START_DATE) {
-                command += " --start-date ${params.START_DATE}"
-            }
-            if (params.END_DATE) {
-                command += " --end-date ${params.END_DATE}"
-            }
-            command += " --format ${params.REPORT_FORMAT}"
-            command += " --max-workers ${params.MAX_WORKERS}"
-            
-            echo "Executing: ${command}"
-            
-            // Activate the venv and run the command
-            if (isUnix()) {
-                def venvActivate = ". ${venvDir}/bin/activate"
-                sh "${venvActivate} && ${command}"
-            } else {
-                def venvActivate = "${venvDir}\\Scripts\\activate"
-                bat "${venvActivate} && ${command}"
-            }
+            runPerformanceReport(CONFIG.VENV_DIR)
         }
 
-        // --- STAGE: Archive Report ---
         stage('Archive Report') {
-            // This logic runs only if a report file was meant to be created
-            if (params.REPORT_FORMAT == 'excel' || params.REPORT_FORMAT == 'csv') {
-                def reportFileName = (params.REPORT_FORMAT == 'excel') ? 'performance_report.xlsx' : 'performance_report.csv'
-                echo "Archiving generated report: ${reportFileName}"
-            } else {
-                echo "Skipping archiving as report format is 'console'."
-            }
+            archiveReportArtifacts(CONFIG.REPORT_FILE_NAMES)
         }
     }
-    catch (e) {
-        // If any stage fails, this block will be executed
-        echo "An error occurred during the pipeline execution."
-        // Re-throw the exception to mark the build as failed
-        throw e
+    catch (Exception e) {
+        handleError(e)
     }
     finally {
-        // --- STAGE: Cleanup ---
-        // This stage will run regardless of whether the build succeeded or failed
-        stage('Cleanup') {
-            echo "Cleaning up workspace..."
-            // Remove the virtual environment
-            // sh "rm -rf ${VENV_DIR}"
+        cleanup(CONFIG.VENV_DIR)
+    }
+}
+
+// =========================================================================
+// SECTION 3: BUILD CONFIGURATION FUNCTIONS
+// =========================================================================
+def configureBuildInfo() {
+    def builderName = getBuilderName()
+    def buildName = constructBuildName(builderName)
+    def buildDescription = constructBuildDescription(builderName)
+    
+    currentBuild.displayName = buildName
+    currentBuild.description = buildDescription
+    echo "Set build name to: ${buildName}"
+}
+
+def getBuilderName() {
+    def cause = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
+    return cause.userName ?: 'Scheduler'
+}
+
+def constructBuildName(builderName) {
+    def name = "[${builderName}] ${params.SOURCE_TYPE}: ${params.SOURCE_IDENTIFIER}"
+    if (params.LATEST_SPRINT) {
+        name += " @latest"
+    }
+    name += " (${params.REPORT_FORMAT ?: 'excel'})"
+    return name
+}
+
+def constructBuildDescription(builderName) {
+    def description = "Triggered by: **${builderName}**\n\n"
+    description += "Report for ${params.SOURCE_TYPE} '${params.SOURCE_IDENTIFIER}'"
+    
+    if (params.START_DATE && params.END_DATE) {
+        description += " from ${params.START_DATE} to ${params.END_DATE}."
+    } else if (params.START_DATE) {
+        description += " starting from ${params.START_DATE}."
+    } else if (params.END_DATE) {
+        description += " until ${params.END_DATE}."
+    } else if (params.LATEST_SPRINT) {
+        description += " for the latest completed sprint."
+    }
+    
+    return description
+}
+
+// =========================================================================
+// SECTION 4: ENVIRONMENT SETUP FUNCTIONS
+// =========================================================================
+def setupPythonEnvironment(venvDir, pythonExecutable) {
+    echo "Setting up Python virtual environment..."
+    checkout scm
+    
+    if (isUnix()) {
+        setupUnixEnvironment(venvDir, pythonExecutable)
+    } else {
+        setupWindowsEnvironment(venvDir, pythonExecutable)
+    }
+}
+
+def setupUnixEnvironment(venvDir, pythonExecutable) {
+    def venvActivate = ". ${venvDir}/bin/activate"
+    sh """
+        ${pythonExecutable} --version
+        rm -rf ${venvDir}
+        ${pythonExecutable} -m venv ${venvDir}
+        ${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt
+    """
+}
+
+def setupWindowsEnvironment(venvDir, pythonExecutable) {
+    def venvActivate = "${venvDir}\\Scripts\\activate"
+    bat """
+        ${pythonExecutable} --version
+        rmdir /s /q ${venvDir}
+        ${pythonExecutable} -m venv ${venvDir}
+        call ${venvActivate} && pip install --upgrade pip && pip install -r requirements.txt
+    """
+}
+
+// =========================================================================
+// SECTION 5: COMMAND EXECUTION FUNCTIONS
+// =========================================================================
+def runPerformanceReport(venvDir) {
+    echo "Running Performance Reporter..."
+    
+    def command = constructCommand(params)
+    def pythonAppEnv = [
+        "JIRA_USERNAME=${params.USERNAME}",
+        "JIRA_PASSWORD=${params.PASSWORD}",
+        "BITBUCKET_USERNAME=${params.USERNAME}",
+        "BITBUCKET_PASSWORD=${params.PASSWORD}",
+    ]
+    
+    withEnv(pythonAppEnv) {
+        runCommandInVenv(venvDir, command)
+    }
+    
+    echo "Executing command: ${command}"
+}
+
+def constructCommand(params) {
+    def command = "python -m src.app.main report"
+    command += " --${params.SOURCE_TYPE}"
+    command += params.SOURCE_TYPE == 'jql' ? " ${escapeCommandQuotes(params.SOURCE_IDENTIFIER)}" : " ${params.SOURCE_IDENTIFIER}"
+    
+    if (params.LATEST_SPRINT) {
+        command += " --latest-sprint"
+    }
+    if (params.START_DATE) {
+        command += " --start-date ${params.START_DATE}"
+    }
+    if (params.END_DATE) {
+        command += " --end-date ${params.END_DATE}"
+    }
+    command += " --format ${params.REPORT_FORMAT ?: 'excel'}"
+    command += " --max-workers ${params.MAX_WORKERS ?: '10'}"
+    
+    return command
+}
+
+def escapeCommandQuotes(arg) {
+    def escaped = arg.replaceAll("'", "\\\\'").replaceAll('"', '\\\\"')
+    return "\"${escaped}\""
+}
+
+def runCommandInVenv(venvDir, command) {
+    echo "Running command in virtual environment: ${command}"
+    def venvActivate = isUnix() ? ". ${venvDir}/bin/activate" : "${venvDir}\\Scripts\\activate"
+    
+    if (isUnix()) {
+        sh "${venvActivate} && ${command}"
+    } else {
+        bat "${venvActivate} && ${command}"
+    }
+}
+
+// =========================================================================
+// SECTION 6: REPORT ARCHIVING FUNCTIONS
+// =========================================================================
+def archiveReportArtifacts(reportFileNames) {
+    echo "Archiving report artifacts..."
+    def reportFiles = reportFileNames.collect { fileName -> "${fileName}" }.join(' ')
+    archiveArtifacts artifacts: reportFiles, allowEmptyArchive: true
+    echo "Archived report files: ${reportFiles}"
+}
+
+// =========================================================================
+// SECTION 7: ERROR HANDLING AND CLEANUP
+// =========================================================================
+def handleError(Exception e) {
+    echo "An error occurred during the pipeline execution: ${e.message}"
+    throw e
+}
+
+def cleanup(venvDir) {
+    stage('Cleanup') {
+        echo "Cleaning up workspace..."
+        cleanWs()
+        echo "Removing virtual environment: ${venvDir}"
+        // Uncomment to clean up virtual environment
+        if (isUnix()) {
+            sh "rm -rf ${venvDir}"
+        } else {
+            bat "if exist ${venvDir} ( rmdir /s /q ${venvDir} )"
         }
     }
 }
